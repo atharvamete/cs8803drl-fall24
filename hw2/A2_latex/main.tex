@@ -1,0 +1,323 @@
+\documentclass[letterpaper,12pt,addpoints]{exam}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+
+\usepackage[top=1in, bottom=1in, left=0.75in, right=0.75in]{geometry}
+\usepackage{amsmath,amssymb}
+
+\usepackage[pagebackref,breaklinks,colorlinks]{hyperref}
+\hypersetup{
+    colorlinks = true,
+    linkcolor  = red
+}
+\usepackage[capitalize]{cleveref}
+
+\usepackage[english]{babel}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{mathtools}
+\usepackage{amsfonts}
+\usepackage{epsfig, graphics}
+\usepackage{latexsym}
+\usepackage[parfill]{parskip}
+\usepackage{url}
+\usepackage{titlesec}
+% \usepackage{mysymbols}
+\usepackage{tikz}
+\usepackage{fancyvrb} % for "\Verb" macro
+% \usepackage[T1]{fontenc}
+
+
+% ~ additional packages ~
+\usepackage{booktabs} % fancy tables
+\usepackage{caption} % captionof
+\usepackage{comment}
+%\usepackage{listings} % python code
+\usepackage{xcolor}
+\usepackage{listings}
+%\usepackage{exsheets}
+
+
+\usepackage{pifont,amssymb} % for the symbols
+\usepackage[shortlabels]{enumitem}
+
+\newlist{answerlist}{enumerate}{2}
+\setlist[answerlist]{label={\alph*.\makebox[0pt][r]{\noexpand\emptysquare\hspace{2em}}},ref=\alph*}
+
+\newcommand{\emptysquare}{$\square$}
+\newcommand{\checkedsquare}{\makebox[0pt][l]{\raisebox{1pt}[0pt][0pt]{\large\hspace{1pt}\cmark}}$\square$}
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\item}{{\renewcommand{\emptysquare}{\checkedsquare}\item\leavevmode}}
+
+
+\newcommand{\university}{Georgia Institute of Technology}
+\newcommand{\faculty}{Faculty of Interactive Computing}
+\newcommand{\class}{CS 8803-DRL }
+\newcommand{\examnum}{ASSIGNMENT \#2}
+\newcommand{\content}{Deep Reinforcement Learning}
+\newcommand{\examdate}{11/08/2024}
+
+\pagestyle{headandfoot}
+\firstpageheader{}{}{}
+\firstpagefooter{}{Page \thepage\ of \numpages}{}
+\runningheader{\class}{\examnum}{\examdate}
+\runningheadrule
+\runningfooter{}{Page \thepage\ of \numpages}{}
+
+\begin{document}
+
+\title{\Large \textbf{\university\\ \faculty\\
+\bigskip
+\class -- \examnum \\ \content}}
+\author{Instructor: Prof. Animesh Garg}
+\date{Due date: \examdate}
+
+\maketitle
+\begin{flushleft}
+\makebox[12cm]{\textbf{Name}:\ \hrulefill}
+\medskip
+
+\makebox[12cm]{\textbf{Student Number}:\ \hrulefill}
+\end{flushleft}
+\noindent
+
+\rule{\textwidth}{1pt}
+
+\noindent This writing assignment contains \numpages\ pages (including this cover page) and \numquestions\ questions. Total of points is \numpoints. Good luck and Happy reading work!
+
+\vspace{15pt}
+
+The assignment must be completed before \textbf{11:59pm on Friday, November 8}, 2024.  Make sure to submit all the components mentioned in Section~\ref{sec:checklist}
+
+This assignment consists of two parts -- a writing part and a coding part. For the theory question, your submission should be typeset in \LaTeX. You are required to submit a PDF file containing your responses to the writing questions. For the coding question, you need to submit your code along with the running results, including the reward plot and a testing GIF file. Clearly specify which algorithm you are using to generate these plots. 
+
+The coding question is divided into two sections: the offline learning section in \texttt{hw2\_offline.ipynb} and the model-based RL section in \texttt{hw2\_mbrl.ipynb}. You can complete in whatever order you like except that Section~\ref{sec:coding} should not be completed before the coding assignment is completed.
+
+Please ensure that you start this assignment as early as possible, as it will take time to run and fine-tune your code. The assignment must be completed by each student alone. Collaboration with other students is strictly prohibited. \textbf{Questions may be asked on Ed in case of unclear formulations. Do not post answers, partial answers or hints to answers!} Furthermore, we expect all students to adhere to the standards of academic integrity of the Georgia Institute of Technology.
+
+\clearpage
+\section{Offline RL; Policy constraint to manage distribution shift (18 points)}\label{sec:descriptive-offline-rl}
+
+\subsection{Policy constraint and reward bonuses}
+Action distribution shift is one of the biggest issues in offline RL methods. In particular, when we use an {\it actor-critic (AC)} method, the target $Q$ network gets queried on actions $a'$ sampled from the current policy $\pi$. These actions $a'$ can also be {\it out of distribution (OOD)}, or unseen samples. Since we train on the distribution defined by the behavior policy $\pi_\beta$ that never sampled actions $a'$, therefore using them in training can lead to erroneous (often over optimistic) $Q$ values.
+
+One way to address this problem is that of {\it policy constraint} -- while training we make sure that the policy $\pi$ being learned stays `close' to the data generating policy $\pi_\beta$. This closeness constraint can be expressed and implemented in many ways. In this assignment we will explore some similarity metrics to measure the closeness of $\pi$ and $\pi_\beta$, and how {\it reward bonuses} can be used to constrain the $\pi$ close to $\pi_\beta$.
+
+\subsection{Example; Entropy regularization with reward bonuses}
+Consider an MDP $\mathcal{M}\coloneqq \left(\mathcal{S}, \mathcal{A}, r, p, H\right)$ with state and action spaces $\mathcal{S}, \mathcal{A}$ respectively, reward function $r:\mathcal{S}\times\mathcal{A}\rightarrow \mathbb{R}$, transition function $p:\mathcal{S}\times\mathcal{A}\rightarrow\Delta\mathcal{S}$ and finite horizon $H$.  We are given offline data $\mathcal{D}$ collected by some behavior policy $\pi_\beta$. We denote by $p_\pi$ the distribution over states induced by $\pi$. As a motivating example, consider the {\it soft AC (SAC)} algorithm (discussed in HW 1). When updating,
+SAC adds an adjustment of $b(s,a) \coloneqq - \log \pi(a | s)$ to the target values $\mathbb{E}_{\pi(a|s)}\left[Q(s,a) + b(s,a)\right]$ to enforce
+a maximum entropy regularizer on the policy. Alternatively, we could impose a similar form of entropy regularization by adding the bonus directly to the reward. In expectation, we would optimize
+\begin{align*}
+    \mathbb{E}_{s\sim p_\pi,a\sim \pi} [r(s,a) + \lambda b(s,a)] &= \frac{1}{H} V^\pi - \lambda \mathbb{E}_{s\sim p_\pi} \mathbb{E}_{a\sim\pi} \log \pi(a | s) \\
+    &= \frac{1}{H} V^\pi + \lambda \mathbb{E}_{s\sim p_\pi} \mathcal{H}[\pi(a | s)].
+\end{align*}
+Thus, adding the bonus $b(s, a)$ to rewards is equivalent to regularization with entropy $\mathcal{H}$. In the following parts, you will show how a similar reward bonus can be used for policy constraint to address the action distribution shift in offline RL.
+
+\subsection{Constraining the policy with reward bonuses}
+We wish to learn a Q function and policy $\pi$ from the offline data $\mathcal{D}$ under some constraint $D(\pi, \pi_\beta) \leq \epsilon$ with
+the following update:
+\begin{align}\label{eq:q-update}
+    Q(s,a) &\leftarrow r(s,a) + \mathbb{E}_{a' \sim \pi} [Q(s',a')], \\\label{eq:pi-constraint}
+    &\text{where} \quad \pi \coloneqq \arg \max_\pi \mathbb{E}_{s\sim p_\pi,a \sim \pi} [Q(s,a)] \quad \text{s.t.} \quad D(\pi, \pi_\beta) \leq \epsilon.
+\end{align}
+
+Directly enforcing the constraint in \cref{eq:pi-constraint} is challenging with the environment rewards $r(s,a)$, so we will implicitly
+enforce the constraint with a Lagrangian, modifying the reward to $\bar{r}(s,a) \coloneqq r(s,a) + \lambda b(s,a)$ in \cref{eq:q-update}. The overall
+optimization then becomes:
+\begin{align*}
+    Q(s,a) &\leftarrow \bar{r}(s,a) + \mathbb{E}_{a' \sim \pi} [Q(s',a')],\\
+    &\text{where} \quad \pi \coloneqq \arg \max_\pi \mathbb{E}_{s\sim p_\pi,a \sim \pi} [Q(s,a)].
+\end{align*}
+You may assume that $\lambda > 0$ is selected appropriately to enforce the constraint as follows:
+\begin{align*}
+    \left( \arg \max_\pi \mathbb{E}_{s\sim p_\pi,a \sim \pi} [Q(s,a)] - \lambda D(\pi, \pi_\beta) \right)
+    &= \left( \arg \max_\pi \mathbb{E}_{s\sim p_\pi,a \sim \pi} [Q(s,a)] \quad \text{s.t.} \quad D(\pi, \pi_\beta) \leq \epsilon \right).
+\end{align*}
+You may also assume access to the distributions $\pi(a | s)$ and $\pi_\beta(a | s)$ in your answers.
+
+\textbf{For each of the following questions, please clearly write your solution in clear and unambiguous steps. Also clearly provide your justification (and any comments, if necessary,) for each step in plain english. Only answers typed in \LaTeX will be accepted.}
+
+\begin{questions}
+
+\question[5] Suppose we wish to learn $\pi$ under a KL-divergence constraint, i.e.,
+\begin{align*}
+D(\pi, \pi_\beta) \coloneqq \mathbb{E}_{s \sim p_\pi} D_{\text{KL}} \left[ \pi\left(a | s\right) \middle\| \pi_\beta\left(a | s\right) \right].
+\end{align*}
+How should we define $b(s,a)$ in order to enforce this constraint by adding the bonus  to the reward $\bar{r}(s,a) \coloneqq r(s,a) + \lambda b(s,a)$?
+
+
+
+\question[5] The $f$-divergence is a generalization of the KL-divergence that can be defined for distributions $P$ and $Q$ by
+    \begin{align*}
+    D_f [P \| Q] \coloneqq \int Q(x) f \left( \frac{P(x)}{Q(x)} \right) dx
+    \end{align*}
+    where $f$ is a convex function with zero at 1. We can state an $f$-divergence policy constraint as
+    \begin{align*}
+    D(\pi, \pi_\beta) \coloneqq \mathbb{E}_{s \sim p_\pi} D_f \left[ \pi(a | s) \| \pi_\beta(a | s) \right].
+    \end{align*}
+    How can you extend your answer from part (1) to account for an arbitrary $f$-divergence? Your answer should be a more general alternate expression for $b(s,a)$ in terms of $f$.
+
+
+
+
+\question[8] Now we want to constrain divergence in the distribution of trajectories
+    of states under $\pi$ and $\pi_\beta$. We can express the KL divergence between the (state) trajectory distributions
+    for $\tau \coloneqq (s_1, s_2, \dots, s_H)$ as follows:
+    \begin{align*}
+    D(\pi, \pi_\beta) \coloneqq D_{\text{KL}} [p_\pi(\tau) \| p_{\pi_\beta}(\tau)].
+    \end{align*}
+    What expression for $b(s,a)$ enforces this constraint? If you do not have access to the model $p(. | s, a)$ (which is the case in offline RL), can you still enforce this constraint?
+
+
+\end{questions}
+
+\section{Coding Assignment Questions (26 points)}
+\label{sec:coding}
+
+Hopefully you didn't complete the coding assignment with ChatGPT! In this section we'll ask you some questions requiring you to reflect on what you built.
+
+\subsection{Behavior Cloning and Offline RL (12 points)}
+\begin{questions}
+    \question[3] Explain, with reference to specific characteristics of the dataset we trained on for this assignment, why you would expect an offline RL algorithm to achieve stronger performance than a behavior cloning algorithm.
+
+
+
+    \question[3] How does IQL avoid overestimation on OOD state-action pairs?
+
+
+
+    \question[3] What is the difference between the IQL policy update and the BC policy update and how does this difference lead the policy to choose better actions than BC?
+
+
+
+    \question[3] Can IQL ever learn to execute an actions better than those in the dataset? If so, how so and if not, why not?
+    
+
+    
+\end{questions}
+
+\subsection{Model-Based RL (14 points)}
+\begin{questions}
+    \question[3] In this homework you learned a good policy for the CartPole environment using only 26 demonstrations. Why is PETS so much more efficient than many model-free algorithms?
+
+
+    
+    \question[5] I decided not to make you implement the cross entropy method optimizer (you're welcome) but it's still important to understand how it works, so please explain here how it is used to sample trajectories that minimize the expected cost. What do the \texttt{popsize} and \texttt{num\_elites} parameters change?
+    
+
+
+    \question[3] Give one reason that CEM is a better optimizer for this setting than an optimizer requiring gradients such as gradient descent?
+
+
+    
+    \question[3] In order to compute costs we made a big assumption about our environment that we usually cannot make, especially in the real world. What assumption was that and how might you go about changing the algorithm to relax this assumption?
+    
+
+
+
+
+    
+\end{questions}
+
+
+
+\clearpage
+\section{Multiple Choices Questions (12 points)}
+\textbf{For each of the following multiple-choice questions, select the correct answer. After choosing an option, briefly explain your reasoning in 2-3 sentences. Your explanation should highlight why the selected option is correct and why the other options are not. Use examples where relevant to support your answer.}
+
+\begin{questions}
+\question[2] What is the main goal of offline RL?
+\begin{answerlist}
+ \item Recover the policy $\pi$.
+ \item Recover the optimal policy $\pi^\ast$.
+ \item Recover the behavior policy $\pi_\beta$.
+ \item Recover a policy that maximizes $Q$ over $\mathcal{D}$.
+ \item Recover a policy that minimizes regret over $\mathcal{M}$.
+\end{answerlist}
+
+\question[2] In \cref{sec:descriptive-offline-rl}, we assumed access to $\pi_\beta$. If we want to do offline RL, how can we circumvent this assumption being false?
+\begin{answerlist}
+ \item Learn $\pi$ using imitation learning.
+ \item Estimate $\pi_\beta$ using imitation learning.
+ \item Learn $\pi$ via offline RL without policy constraint.
+ \item Estimate $\pi_\beta$ via offline RL without policy constraint.
+ \item None -- not possible to learn $\pi$.
+\end{answerlist}
+
+
+\question[2] \textbf{Both} CQL and IQL set out to address this issue with offline RL:
+\begin{answerlist}
+ \item Instability during online finetuning.
+ \item Q overestimation on out of distribution actions
+ \item Distribution shift.
+ \item Sample inefficiency.
+\end{answerlist}
+
+
+
+
+\question[2] What issue does the ensemble in the PETS dynamics model help to address?
+\begin{answerlist}
+ \item Epistemic uncertainty
+ \item Aleatoric uncertainty
+ \item MuJoCo simulator incompatible with Windows
+ \item Sample efficiency
+ \item Slow MPC inference
+\end{answerlist}
+
+
+\question[2] What are possible issues with MPC-based model-based RL methods like PETS?
+\begin{answerlist}
+ \item Data inefficiency.
+ \item Model inaccuracies over long prediction horizons.
+ \item Worse asymptotic performance than model-free alternatives.
+ \item Slow test-time inference speeds
+\end{answerlist}
+
+
+
+
+\question[2] Vanilla model based policy optimization (MBPO) does the following.
+\begin{answerlist}
+ \item Augments the data with samples from the model.
+ \item Uses pessimistic estimate of model predictions.
+ \item Generates synthetic roll-outs.
+ \item Uses uncertainty in model estimates.
+ \item Uses expected value of model predictions.
+\end{answerlist}
+
+
+\end{questions}
+
+
+\newpage
+\section{Checklist for Assignment Submission}
+\label{sec:checklist}
+
+\textbf{Congratulations on completing Assignment 2! We have created a checklist for you to double-check your submission. The files you need to submit are:}
+
+\begin{itemize}[left=0pt, label={\textcolor{blue}{$\square$}}]
+    \item \textbf{hw2.zip}: a zip file with your completed PDF and code.
+    \begin{itemize}[left=20pt, label={\textcolor{blue}{$\square$}}]
+        \item \textbf{Jupyter Notebook files}:\\ \texttt{hw2\_offline.ipynb}, \texttt{hw2\_mbrl.ipynb}
+        \item \textbf{Coding results}:
+        \begin{itemize}
+            \item \texttt{bc\_policy.gif}
+            \item \texttt{Behavior Cloning\_returns.png} 
+            \item \texttt{Implicit Q Learning\_returns.png}
+            \item \texttt{iql\_policy.gif}
+            \item \texttt{pets\_policy.gif}
+        \end{itemize}
+    \end{itemize}
+    \item \textbf{Writing assignment PDF file}: \texttt{CS8803\_DRL\_A2.pdf}
+    \item \textbf{hw2\_offline.html}: \\ Convert the \texttt{hw2\_offline.ipynb} to a HTML file \textbf{\textcolor{blue}{containing your running results.}}
+    \item \textbf{hw2\_mbrl.html}:\\  Convert the \texttt{hw2\_mbrl.ipynb} to a HTML file \textbf{\textcolor{blue}{containing your running results.}}
+    \item \textbf{Completing the Multiple Choices Questions on Canvas.}
+\end{itemize}
+
+
+
+
+
+
+\end{document}
