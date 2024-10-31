@@ -1,6 +1,8 @@
 # CS 8803-DRL Fall 2024 Homework 2
 
 ## Setup
+To run on your machine, refer to the following instructions. To run on Colab, the instructions are included in the colab versions of the ipynb files.
+
 Build and use the `cs8803drl` environment as follows. For this homework, we only support installation via conda environments
 
 **NOTE:** Install the GPU version of PyTorch if preferred. If you already have the GPU version of PyTorch but would like the assignment code to use CPU, then set the `ONLY_CPU` flag to `True` under `src/utils.py`. Having a GPU may not provide a substantial performance boost for `hw2_offline.ipynb` but will be very helpful for MPC in `hw2_mbrl.ipynb`.
