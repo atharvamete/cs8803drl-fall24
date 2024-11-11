@@ -45,6 +45,8 @@ def train_one_epoch(
 
         # Running total of this episode's rewards
         episode_reward: float = 0
+        episode_rewards = []
+        episode_log_probs = []
 
         # Reset the environment and get a fresh observation
         state, info = env.reset()
@@ -54,24 +56,35 @@ def train_one_epoch(
             epoch_total_timesteps += 1
 
             # TODO: Sample an action from the policy
+            action, log_prob = policy.sample(state)
 
             # TODO: Take the action in the environment
+            state, reward, terminated, truncated, info = env.step(action)
 
             # TODO: Accumulate the reward
+            episode_reward += reward
+            episode_rewards.append(reward)
 
             # TODO: Store the log probability of the action
+            episode_log_probs.append(log_prob)
+            
 
             # Finish the action loop if this episode is done
-            if done:
+            if terminated or truncated:
                 # TODO: Assign the episode reward to each timestep in the episode
-
+                epoch_action_rewards.extend([episode_reward] * len(episode_rewards))
+                epoch_log_probability_actions.extend(episode_log_probs)
                 break
 
     # TODO: Calculate the policy gradient loss
+    training_loss = loss(torch.stack(epoch_log_probability_actions), torch.tensor(epoch_action_rewards, dtype=torch.float32, device=DEVICE))
 
 
     # TODO: Perform backpropagation and update the policy parameters
+    optimizer.zero_grad()
+    training_loss.backward()
+    optimizer.step()
 
 
     # Placeholder return values (to be replaced with actual calculations)
-    return 0.0, 0.0
+    return np.mean(epoch_action_rewards), training_loss.item()

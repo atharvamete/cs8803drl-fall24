@@ -29,7 +29,13 @@ def network(
     Returns:
         nn.Module: The constructed neural network model.
     """
-    pass
+    return nn.Sequential(
+        nn.Linear(in_dimension, hidden_dimension//2),
+        nn.ReLU(),
+        nn.Linear(hidden_dimension//2, hidden_dimension),
+        nn.ReLU(),
+        nn.Linear(hidden_dimension, out_dimension)
+    )
 
 
 class Policy(nn.Module):
@@ -57,7 +63,8 @@ class Policy(nn.Module):
         TODO: Implement the forward method to compute the network output for the given state.
         You can use the self.network to forward the input.
         """
-        pass
+        state = torch.tensor(state, dtype=torch.float32, device=DEVICE)
+        return self.network(state)
 
     def pi(self, state: np.ndarray) -> Categorical:
         """
@@ -71,7 +78,8 @@ class Policy(nn.Module):
 
         TODO: Implement the pi method to create a Categorical distribution based on the network's output.
         """
-        pass
+        logits = self.forward(state)
+        return Categorical(logits=logits)
 
     def sample(self, state: np.ndarray) -> Tuple[int, torch.Tensor]:
         """
@@ -85,7 +93,10 @@ class Policy(nn.Module):
 
         TODO: Implement the sample method to sample an action and compute its log probability.
         """
-        pass
+        pi = self.pi(state)
+        action = pi.sample()
+        log_prob = pi.log_prob(action)
+        return action.cpu().item(), log_prob
 
     def sample_multiple(self, states: np.ndarray) -> Tuple[int, torch.Tensor]:
         """
@@ -99,7 +110,10 @@ class Policy(nn.Module):
 
         TODO: Implement the sample_multiple method to handle multiple states.
         """
-        pass
+        pis = self.pi(states)
+        actions = pis.sample()
+        log_probs = pis.log_prob(actions)
+        return actions, log_probs
 
     def action(self, state: np.ndarray) -> torch.Tensor:
         """
@@ -113,7 +127,7 @@ class Policy(nn.Module):
 
         TODO: Implement the action method to return an action based on the sampled action.
         """
-        pass
+        return self.sample(state)[0]
 
 
 class ValueFunctionQ(nn.Module):
@@ -124,6 +138,7 @@ class ValueFunctionQ(nn.Module):
             hidden_dimension: int = HIDDEN_DIMENSION
     ):
         super(ValueFunctionQ, self).__init__()
+        self.num_actions = num_actions
         self.network = network(
             state_dimension, hidden_dimension, num_actions
         )
@@ -144,7 +159,10 @@ class ValueFunctionQ(nn.Module):
         TODO: Implement the __call__ method to return Q-values for the given state and action.
         This method is intended to compute Q(s, a).
         """
-        pass
+        q_values = self.forward(state)
+        if action is not None:
+            return q_values[action]
+        return q_values
 
     def forward(self, state: np.ndarray) -> torch.Tensor:
         """
@@ -159,7 +177,8 @@ class ValueFunctionQ(nn.Module):
         TODO: Implement the forward method to compute Q-values for the given state.
         You can use the self.network to forward the input.
         """
-        pass
+        state_tensor = torch.tensor(state, dtype=torch.float32, device=DEVICE)
+        return self.network(state_tensor)
 
     def greedy(self, state: np.ndarray) -> torch.Tensor:
         """
@@ -174,7 +193,8 @@ class ValueFunctionQ(nn.Module):
         TODO: Implement the greedy method to select the best action based on Q-values.
         This method is intended for greedy sampling.
         """
-        pass
+        q_values = self.forward(state)
+        return torch.argmax(q_values)
 
     def action(self, state: np.ndarray) -> torch.Tensor:
         """
@@ -188,7 +208,7 @@ class ValueFunctionQ(nn.Module):
 
         TODO: Implement the action method to return the greedy action.
         """
-        pass
+        return self.greedy(state).cpu().item()
 
     def V(self, state: np.ndarray, policy: Policy) -> float:
         """
@@ -204,4 +224,6 @@ class ValueFunctionQ(nn.Module):
         TODO: Implement the V method to compute the expected value of the state under the policy.
         This method is intended to return V(s).
         """
-        pass
+        pi = policy.pi(state)
+        q_values = self.forward(state)
+        return torch.sum(pi.probs * q_values).item()
